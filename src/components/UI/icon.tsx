@@ -49,6 +49,48 @@ interface IconProps {
  * - Type-safe icon names
  * - Bundled with the library (no external dependencies)
  */
+// Safe base64 decoder that works in all environments
+const base64Decode = (base64: string): string => {
+  try {
+    // Use browser's atob if available
+    if (typeof atob !== "undefined") {
+      return atob(base64);
+    }
+    
+    // Fallback for Node.js/server environments
+    if (typeof Buffer !== "undefined") {
+      return Buffer.from(base64, "base64").toString("utf8");
+    }
+    
+    // Manual base64 decoding as last resort
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+    let str = "";
+    let i = 0;
+    
+    base64 = base64.replace(/[^A-Za-z0-9\+\/\=]/g, "");
+    
+    while (i < base64.length) {
+      const enc1 = chars.indexOf(base64.charAt(i++));
+      const enc2 = chars.indexOf(base64.charAt(i++));
+      const enc3 = chars.indexOf(base64.charAt(i++));
+      const enc4 = chars.indexOf(base64.charAt(i++));
+      
+      const chr1 = (enc1 << 2) | (enc2 >> 4);
+      const chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+      const chr3 = ((enc3 & 3) << 6) | enc4;
+      
+      str += String.fromCharCode(chr1);
+      if (enc3 !== 64) str += String.fromCharCode(chr2);
+      if (enc4 !== 64) str += String.fromCharCode(chr3);
+    }
+    
+    return str;
+  } catch (error) {
+    console.error("Base64 decoding error:", error);
+    throw error;
+  }
+};
+
 export const Icon = ({ name, width = 20, height = 20, className, title }: IconProps) => {
   const svgDataUrl = iconMap[name];
 
@@ -60,18 +102,26 @@ export const Icon = ({ name, width = 20, height = 20, className, title }: IconPr
   try {
     // Handle both base64 data URLs and plain base64 strings
     let svgContent: string;
-    if (svgDataUrl.startsWith("data:image/svg+xml;base64,")) {
+    if (typeof svgDataUrl === "string" && svgDataUrl.startsWith("data:image/svg+xml;base64,")) {
       svgContent = svgDataUrl.replace(/^data:image\/svg\+xml;base64,/, "");
-    } else if (svgDataUrl.startsWith("data:")) {
+    } else if (typeof svgDataUrl === "string" && svgDataUrl.startsWith("data:")) {
       // Handle other data URL formats
       const base64Match = svgDataUrl.match(/^data:[^;]+;base64,(.+)$/);
       svgContent = base64Match ? base64Match[1] : svgDataUrl;
-    } else {
+    } else if (typeof svgDataUrl === "string") {
       // Assume it's already base64
       svgContent = svgDataUrl;
+    } else {
+      console.warn(`Icon "${name}" has invalid format`);
+      return null;
     }
 
-    const decodedSvg = atob(svgContent);
+    const decodedSvg = base64Decode(svgContent);
+
+    if (!decodedSvg || !decodedSvg.trim()) {
+      console.warn(`Icon "${name}" decoded to empty string`);
+      return null;
+    }
 
     // Parse SVG using regex for better compatibility
     const viewBoxMatch = decodedSvg.match(/viewBox=["']([^"']+)["']/);
@@ -80,6 +130,11 @@ export const Icon = ({ name, width = 20, height = 20, className, title }: IconPr
     // Extract inner content by removing the outer <svg> tag
     const innerContentMatch = decodedSvg.match(/<svg[^>]*>([\s\S]*?)<\/svg>/);
     const innerContent = innerContentMatch ? innerContentMatch[1] : decodedSvg;
+
+    if (!innerContent) {
+      console.warn(`Icon "${name}" has no content`);
+      return null;
+    }
 
     return (
       <svg
@@ -99,7 +154,20 @@ export const Icon = ({ name, width = 20, height = 20, className, title }: IconPr
     );
   } catch (error) {
     console.error(`Error decoding icon "${name}":`, error);
-    return null;
+    // Return a fallback empty SVG instead of null to prevent layout shifts
+    return (
+      <svg
+        width={width}
+        height={height}
+        viewBox="0 0 20 20"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className={`inline-block ${className || ""}`}
+        role="img"
+      >
+        <title>{title || name}</title>
+      </svg>
+    );
   }
 };
 
