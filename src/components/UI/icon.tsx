@@ -57,34 +57,50 @@ export const Icon = ({ name, width = 20, height = 20, className, title }: IconPr
     return null;
   }
 
-  // Extract SVG content from data URL
-  const svgContent = svgDataUrl.replace(/^data:image\/svg\+xml;base64,/, "");
-  const decodedSvg = atob(svgContent);
+  try {
+    // Handle both base64 data URLs and plain base64 strings
+    let svgContent: string;
+    if (svgDataUrl.startsWith("data:image/svg+xml;base64,")) {
+      svgContent = svgDataUrl.replace(/^data:image\/svg\+xml;base64,/, "");
+    } else if (svgDataUrl.startsWith("data:")) {
+      // Handle other data URL formats
+      const base64Match = svgDataUrl.match(/^data:[^;]+;base64,(.+)$/);
+      svgContent = base64Match ? base64Match[1] : svgDataUrl;
+    } else {
+      // Assume it's already base64
+      svgContent = svgDataUrl;
+    }
 
-  // Parse SVG using regex for better compatibility
-  const viewBoxMatch = decodedSvg.match(/viewBox=["']([^"']+)["']/);
-  const viewBox = viewBoxMatch ? viewBoxMatch[1] : "0 0 20 20";
+    const decodedSvg = atob(svgContent);
 
-  // Extract inner content by removing the outer <svg> tag
-  const innerContentMatch = decodedSvg.match(/<svg[^>]*>([\s\S]*?)<\/svg>/);
-  const innerContent = innerContentMatch ? innerContentMatch[1] : decodedSvg;
+    // Parse SVG using regex for better compatibility
+    const viewBoxMatch = decodedSvg.match(/viewBox=["']([^"']+)["']/);
+    const viewBox = viewBoxMatch ? viewBoxMatch[1] : "0 0 20 20";
 
-  return (
-    <svg
-      width={width}
-      height={height}
-      viewBox={viewBox}
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={`inline-block ${className || ""}`}
-      role="img"
-      aria-hidden={!title}
-      {...(title && { "aria-label": title })}
-    >
-      {title && <title>{title}</title>}
-      <g dangerouslySetInnerHTML={{ __html: innerContent }} />
-    </svg>
-  );
+    // Extract inner content by removing the outer <svg> tag
+    const innerContentMatch = decodedSvg.match(/<svg[^>]*>([\s\S]*?)<\/svg>/);
+    const innerContent = innerContentMatch ? innerContentMatch[1] : decodedSvg;
+
+    return (
+      <svg
+        width={width}
+        height={height}
+        viewBox={viewBox}
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className={`inline-block ${className || ""}`}
+        role="img"
+        aria-hidden={!title}
+        {...(title && { "aria-label": title })}
+      >
+        {title && <title>{title}</title>}
+        <g dangerouslySetInnerHTML={{ __html: innerContent }} />
+      </svg>
+    );
+  } catch (error) {
+    console.error(`Error decoding icon "${name}":`, error);
+    return null;
+  }
 };
 
 export default Icon;
